@@ -1,10 +1,11 @@
 Chradle <-
   R6::R6Class("Chradle",
               public = list(
-                ws_con = NULL
+                ws_con = NULL,
                 session_num = NULL,
                 debug_port = NULL,
                 session_url = NULL,
+                debug_process = NULL,
                 message_ctr = NULL,
                 response = NULL,
                 waiting_for_reply = NULL,
@@ -16,14 +17,15 @@ Chradle <-
                   self$waiting_for_reply <- FALSE
 
                   ## launch chromium window
-                  processx::process$new(bin,
+                  self$debug_process <- processx::process$new(bin,
                                         c("--new-window",
-                                          url,
+                                         url,
                                           "--user-data-dir=remote-profile",
                                           glue::glue("--remote-debugging-port={debug_port}")))
-
+                  Sys.sleep(3)
                   open_debugegrs <-
                     jsonlite::read_json(glue::glue("http://localhost:{debug_port}/json"))
+
                   ws_addr <- open_debugegrs[[self$session_num]]$webSocketDebuggerUrl
                   self$ws_con <- websocket::WebSocket$new(ws_addr, autoConnect = FALSE)
 
@@ -50,7 +52,7 @@ Chradle <-
                   args$params <- params
                   package <- jsonlite::toJSON(args, auto_unbox = TRUE)
                   self$ws_con$send(package)
-                }
+                },
 
                 get_attribute_names = function(id){
                   self$waiting_for_reply <- TRUE
