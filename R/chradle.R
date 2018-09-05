@@ -16,7 +16,7 @@ Chradle <-
                   self$waiting_for_reply <- FALSE
 
                   ## launch chromium window
-                  processx::process$new(glue::glue("{bin}"),
+                  processx::process$new(bin,
                                         c("--new-window",
                                           url,
                                           "--user-data-dir=remote-profile",
