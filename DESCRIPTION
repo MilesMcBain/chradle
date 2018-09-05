@@ -12,6 +12,7 @@ Imports:
     future,
     jsonlite,
     websocket (>= 0.0.0.9001),
-    glue
+    glue,
+    processx
 Remotes: 
     rstudio/websocket
