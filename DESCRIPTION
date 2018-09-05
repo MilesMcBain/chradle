@@ -11,6 +11,7 @@ Imports:
     R6,
     future,
     jsonlite,
-    websocket (>= 0.0.0.9001)
-Remotes:  
+    websocket (>= 0.0.0.9001),
+    glue
+Remotes: 
     rstudio/websocket
