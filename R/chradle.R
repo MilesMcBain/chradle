@@ -22,11 +22,11 @@ Chradle <-
                                          url,
                                           "--user-data-dir=remote-profile",
                                           glue::glue("--remote-debugging-port={debug_port}")))
-                  Sys.sleep(3)
-                  open_debugegrs <-
+                  Sys.sleep(3) 
+                  open_debuggers <-
                     jsonlite::read_json(glue::glue("http://localhost:{debug_port}/json"))
 
-                  ws_addr <- open_debugegrs[[self$session_num]]$webSocketDebuggerUrl
+                  ws_addr <- open_debuggers[[self$session_num]]$webSocketDebuggerUrl
                   self$ws_con <- websocket::WebSocket$new(ws_addr, autoConnect = FALSE)
 
                   self$ws_con$onMessage(function(event){
@@ -34,9 +34,14 @@ Chradle <-
                     self$waiting_for_reply <- FALSE
                   })
 
-                  self$ws_con$connect()
+                  self$ws_con$onOpen(function(event){
+                    message("chradele: opened ws connection.")
 
-                  self$send_message(method = "Runtime.enable")
+                    ## enable runtime
+                    chr_message(id = self$get_message_id(),
+                                method = "Runtime.enable") %>%
+                      self$ws_con$send()
+                  })
                 },
 
                 get_message_id = function(){
@@ -45,14 +50,6 @@ Chradle <-
                   current_id
                 },
 
-                send_message = function(method, params = NULL){
-                  args <- list()
-                  args$id <- self$get_message_id()
-                  args$method <- method
-                  args$params <- params
-                  package <- jsonlite::toJSON(args, auto_unbox = TRUE)
-                  self$ws_con$send(package)
-                },
 
                 get_attribute_names = function(id){
                   self$waiting_for_reply <- TRUE
@@ -81,3 +78,13 @@ Chradle <-
                   self$response
                 })
               )
+
+
+chr_message <- function(id, method, params = NULL){
+  args <- list()
+  args$id <- id
+  args$method <- method
+  args$params <- params
+  package <- jsonlite::toJSON(args, auto_unbox = TRUE)
+  package
+}

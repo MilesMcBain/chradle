@@ -13,6 +13,9 @@ Imports:
     jsonlite,
     websocket (>= 0.0.0.9001),
     glue,
-    processx
+    processx,
+    magrittr
 Remotes: 
     rstudio/websocket
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 6.1.0
