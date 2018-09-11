@@ -1,25 +1,35 @@
+---
+output: github_document
+---
 
 <!-- README.md is generated from README.Rmd. Please edit that file -->
-chradle
-=======
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.path = "man/figures/README-",
+  out.width = "100%"
+)
+```
+# chradle
 
 WORK IN PROGRESS
 
 A simple test harness for Chromium/Chrome, drive-able from R using a websocket connection.
 
-It started out as an R6 class but all the asyc/promise craziness got to be too hard in that context, so now it's just a library of functions.
+It started out as an R6 class but all the asyc/promise craziness got to be too
+hard in that context, so now it's just a library of functions.
 
-Installation
-------------
+## Installation
 
 ``` r
 devtools::install_github("milesmcbain/chradle")
 ```
 
-Example
--------
+## Example
 
-``` r
+```{r example, eval = FALSE}
 
 session_state <-
   callr::r(function(){
@@ -39,3 +49,4 @@ session_state <-
 
 session_state
 ```
+

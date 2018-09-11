@@ -1,84 +1,123 @@
-Chradle <-
-  R6::R6Class("Chradle",
-              public = list(
-                ws_con = NULL,
-                session_num = NULL,
-                debug_port = NULL,
-                session_url = NULL,
-                debug_process = NULL,
-                message_ctr = NULL,
-                response = NULL,
-                waiting_for_reply = NULL,
-                initialize = function(url = "http://localhost:8080", debug_port=9222, bin="chromium-browser"){
+##' Initialise a chradle
+##'
+##' @title chr_init
+##' @param url url of the session to be inspected
+##' @param debug_port port to open the chromium debugger on
+##' @param bin name of the browser binary to use, assumed to be on PATH.
+##' @return a chromium session as a processx background process
+##' @export
+chr_init <- function(url = "http://localhost:8080",
+                     debug_port=9222,
+                     bin="chromium-browser"){
+  ## launch chromium window
+  debug_process <- processx::process$new(bin,
+                                              c("--new-window",
+                                                url,
+                                                "--user-data-dir=remote-profile",
+                                                glue::glue("--remote-debugging-port={debug_port}")))
+  debugger_200_ok(debug_port)
+  instance <- list(debug_process = debug_process,
+                   debug_port = debug_port)
+  instance
+}
 
-                  self$session_num <- 1
-                  self$session_url <- url
-                  self$message_ctr <- 1
-                  self$waiting_for_reply <- FALSE
+##' Make a call to a chadle
+##'
+##' @title chr_call
+##' @param instance a chromium session returned by chr_init
+##' @param query a message to be sent to the chromium session
+##' @return The chromium debugger response to the query.
+##' @author Miles McBain
+##' @export
+chr_call <- function(instance, query){
+  session_num <- 1
+  open_debuggers <-
+    jsonlite::read_json(glue::glue("http://localhost:{instance$debug_port}/json"))
+  ws_addr <- open_debuggers[[session_num]]$webSocketDebuggerUrl
 
-                  ## launch chromium window
-                  self$debug_process <- processx::process$new(bin,
-                                        c("--new-window",
-                                         url,
-                                          "--user-data-dir=remote-profile",
-                                          glue::glue("--remote-debugging-port={debug_port}")))
-                  Sys.sleep(3) 
-                  open_debuggers <-
-                    jsonlite::read_json(glue::glue("http://localhost:{debug_port}/json"))
+  result <- promises::promise(function(resolve, reject){
+    ws_con <- websocket::WebSocket$new(ws_addr, autoConnect = FALSE)
 
-                  ws_addr <- open_debuggers[[self$session_num]]$webSocketDebuggerUrl
-                  self$ws_con <- websocket::WebSocket$new(ws_addr, autoConnect = FALSE)
+    ws_con$onMessage(function(event){
+      response <- jsonlite::fromJSON(event$data)
+      if (is_response_frame(response)) promises::promise_resolve(response)
+    })
 
-                  self$ws_con$onMessage(function(event){
-                    self$response <- event$data
-                    self$waiting_for_reply <- FALSE
-                  })
+    ws_con$onOpen(function(event){
+      message("chradle: opened ws connection.")
 
-                  self$ws_con$onOpen(function(event){
-                    message("chradele: opened ws connection.")
+      ## enable runtime
+      chr_message(id = 1,
+                  method = "Runtime.enable") %>%
+        ws_con$send()
 
-                    ## enable runtime
-                    chr_message(id = self$get_message_id(),
-                                method = "Runtime.enable") %>%
-                      self$ws_con$send()
-                  })
-                },
+      ## perform the query
+      query %>%
+        ws_con$send()
+    })
 
-                get_message_id = function(){
-                  current_id <- self$message_ctr
-                  self$message_ctr <- self$message_ctr + 1
-                  current_id
-                },
+    ws_con$connect()
+  }) 
+}
+
+##' Compose a gettAttributeNames() call to be invoked in a chromium session.
+##'
+##' @title get_attribute_names
+##' @param id of the html element to get attribute names
+##' @return A message to be sent with chr_call().
+##' @export
+get_attribute_names <- function(id){
+  chr_message(id = 2,
+              method = "Runtime.evaluate",
+              params = list(
+                expression = glue::glue('document.querySelector("{id}").getAttributeNames()'),
+                returnByValue = TRUE))
+}
+
+##' Compose a gettAttribute() call to be invoked in a chromium session.
+##'
+##' @title get_attributes()
+##' @param id the id of the html element to get an attribute value from.
+##' @param attribute the name of the attribute to get the value of.
+##' @return a message to be sent with chr_call().
+##' @export
+get_attributes <- function(id, attribute){
+  chr_message(id = 2,
+              method = "Runtime.evaluate",
+              params = list(
+                expression = glue::glue('document.querySelector("{id}").getAttribute("{attribute}")'),
+                returnByValue = TRUE))
+}
+
+##' Kill a background chromium process created with chr_init()
+##'
+##' @title chr_kill
+##' @param instance a chromium process running in background. Created with chr_init
+##' @return a response code for kill signal.
+##' @export
+chr_kill <- function(instance){
+  instance$debug_process$kill()
+}
+
+##' Clean up chromium process temp files
+##'
+##' The background process will create a bunch of temporary files in the current
+##' working directory under the folder 'remote-profile'. This will delete them.
+##'
+##' @title chr_clean
+##' @return nothing
+##' @author Miles McBain
+##' @export
+chr_clean <- function(){
+  processx::process$new("rm",
+                        c("-rf", "remote-profile"))
+  invisible()
+}
 
 
-                get_attribute_names = function(id){
-                  self$waiting_for_reply <- TRUE
-                  self$send_message(method = "Runtime.evaluate",
-                                    params = list(
-                                      expression = glue::glue('document.querySelector("{id}").getAttributeNames()')))
-                  f <- future({self$get_reply()})
-                  value(f)
-                },
-
-                get_attributes = function(id, attribute){
-                  self$waiting_for_reply <- TRUE
-                  self$send_message(method = "Runtime.evaluate",
-                                    params = list(
-                                      expression = glue::glue('document.querySelector("{id}").getAttribute("{attribute}")')))
-                  f <- future({self$get_reply()})
-                  value(f)
-                }
-
-              ),
-
-              private = list(
-
-                get_reply = function(){
-                  while(self$waiting_for_reply){}
-                  self$response
-                })
-              )
-
+################################################################################
+## Helpers
+################################################################################
 
 chr_message <- function(id, method, params = NULL){
   args <- list()
@@ -87,4 +126,24 @@ chr_message <- function(id, method, params = NULL){
   args$params <- params
   package <- jsonlite::toJSON(args, auto_unbox = TRUE)
   package
+}
+
+debugger_200_ok <- function(port){
+
+  url <- glue::glue("http://localhost:{port}")
+  check_url <-
+    purrr::safely( httr::GET,
+                  otherwise = NA)
+  response <- check_url(url)
+
+  if (is.na(response$result) || response$result$status_code != 200){
+    Sys.sleep(0.2)
+    Recall(port)
+  }
+  else
+    TRUE
+}
+
+is_response_frame <- function(ws_msg){
+  !is.null(ws_msg$id) && !is.null(ws_msg$result) && ws_msg$id > 1
 }
