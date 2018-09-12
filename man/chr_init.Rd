@@ -5,7 +5,8 @@
 \title{chr_init}
 \usage{
 chr_init(url = "http://localhost:8080", debug_port = 9222,
-  bin = "chromium-browser")
+  bin = "chromium-browser",
+  block_on_message_pattern = "Runtime.executionContextCreated")
 }
 \arguments{
 \item{url}{url of the session to be inspected}
@@ -13,6 +14,10 @@ chr_init(url = "http://localhost:8080", debug_port = 9222,
 \item{debug_port}{port to open the chromium debugger on}
 
 \item{bin}{name of the browser binary to use, assumed to be on PATH.}
+
+\item{block_on_message_pattern}{a text pattern appearing in a message to
+wait for. Initialisation will not complete until this message is received.
+Initialisation will fail if it is not received in around 30 seconds.}
 }
 \value{
 a chromium session as a processx background process

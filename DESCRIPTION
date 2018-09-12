@@ -1,20 +1,22 @@
 Package: chradle
-Title: What the Package Does (one line, title case)
-Version: 0.0.0.9000
-Authors@R: person("First", "Last", email = "first.last@example.com", role = c("aut", "cre"))
-Description: What the package does (one paragraph).
+Title: Communicate with a live webpage via the Chromium debugger.
+Version: 0.0.1
+Authors@R: person("Miles", "McBain", email = "miles.mcbain@gmail.com", role = c("aut", "cre"))
+Description: The Chrome and Chromium browsers have a rich debugging API
+             for live web pages which is accessible over websocket connections. This has
+             great utility for testing webpages generated and served from R. Chrade is a bare
+             bones test harness for inspecting state in a live browser session.
 Depends: R (>= 3.5.1)
-License: What license is it under?
+License: MIT + file LICENSE
 Encoding: UTF-8
 LazyData: true
 Imports: 
-    R6,
-    future,
     jsonlite,
     websocket (>= 0.0.0.9001),
     glue,
     processx,
-    magrittr
+    magrittr,
+    later
 Remotes: 
     rstudio/websocket
 Roxygen: list(markdown = TRUE)
