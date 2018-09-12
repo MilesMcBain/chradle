@@ -50,7 +50,7 @@ chr_init <- function(url = "http://localhost:8080",
   })
 
   ws_con$connect()
-  block_on_NULL("result_value", max_attempts = 150, envir = result_env)
+  block_on_NULL("result_value", max_attempts = 1000, envir = result_env)
   ws_con$close()
 
   instance <- list(debug_process = debug_process,
@@ -86,10 +86,6 @@ chr_call <- function(instance, query){
 
   ws_con$onOpen(function(event){
     message("chradle: opened ws connection.")
-    ## enable runtime
-    chr_message(id = 1,
-                method = "Runtime.enable") %>%
-      ws_con$send()
     ## perform the query
     query %>%
       ws_con$send()
@@ -97,7 +93,7 @@ chr_call <- function(instance, query){
 
   ws_con$connect()
 
-  block_on_NULL("result_value", max_attempts = 150, envir = result_env)
+  block_on_NULL("result_value", max_attempts = 1000, envir = result_env)
   ws_con$close()
 
   result_env$result_value
