@@ -36,13 +36,13 @@ test_session <-
   chr_init(url = "http://localhost:8080",
            debug_port = 9222,
            bin = "chromium-browser",
-           block_on_message_pattern = "THREE.WebGLRenderer") 
+           block_on_message_pattern = "r2vr-message-router",
+           incomming_debug = TRUE)
 
 session_state <-
-  chr_call(test_session, get_attributes(id = "#block",
+  chr_call(test_session, get_attributes(id = "block",
                                         attribute = "material"))
 session_state
-
 chr_kill(test_session)
 chr_clean()
 

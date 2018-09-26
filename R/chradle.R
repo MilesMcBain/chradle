@@ -12,49 +12,84 @@
 chr_init <- function(url = "http://localhost:8080",
                      debug_port=9222,
                      bin="chromium-browser",
-                     block_on_message_pattern="Runtime.executionContextCreated"){
+                     block_on_message_pattern="Page.frameStoppedLoading",
+                     incomming_debug = FALSE){
+
   ## launch chromium window
   debug_process <- processx::process$new(bin,
-                                              c("--new-window",
-                                                url,
-                                                "--user-data-dir=remote-profile",
-                                                glue::glue("--remote-debugging-port={debug_port}")))
+                                         c("--use-test-config",
+                                           "--no-first-run",
+                                           "--new-window",
+                                           url,
+                                           "--user-data-dir=remote-profile",
+                                           glue::glue("--remote-debugging-port={debug_port}")))
   debugger_200_ok(debug_port)
-
   ## Browser up
-  ## Connect and enable runtime
-  session_num <- 1
+  ## Connect and enable Runtime, Page domains.
   result_env <- new.env()
   result_env$result_value <- NULL
 
-  open_debuggers <-
-    jsonlite::read_json(glue::glue("http://localhost:{debug_port}/json"))
-
-  ws_addr <- open_debuggers[[session_num]]$webSocketDebuggerUrl
-  ws_con <- websocket::WebSocket$new(ws_addr, autoConnect = FALSE)
+  ws_con <- debugger_socket(debug_port)
 
   ws_con$onOpen(function(event){
     message("chradle: opened ws connection.")
     chr_message(id = 1,
                 method = "Runtime.enable") %>%
       ws_con$send()
+
+    chr_message(id = 1,
+                method = "Page.enable") %>%
+      ws_con$send()
   })
 
   ## Block on a message indicating runtime enabled or a later message of the
   ## user's nomination.
   ws_con$onMessage(function(event){
-    if (str_detect(event$data, block_on_message_pattern)) {
+    if(incomming_debug) message("chr_init got message: ", event$data)
+
+    if (stringr::str_detect(event$data, block_on_message_pattern)) {
       message("chradle got message with pattern: ", block_on_message_pattern)
       result_env$result_value <- TRUE
     }
   })
 
   ws_con$connect()
-  block_on_NULL("result_value", max_attempts = 1000, envir = result_env)
+  block_on_NULL("result_value", max_attempts = 1000,
+                retry_delay = 2,
+                envir = result_env)
   ws_con$close()
 
   instance <- list(debug_process = debug_process,
                    debug_port = debug_port)
+
+  instance
+}
+
+chr_key <- function(instance){
+
+  result_env <- new.env()
+  result_env$result_value <- NULL
+
+  ws_con <- debugger_socket(instance$debug_port)
+
+  ws_con$onOpen(function(event){
+    chr_message(id = 1,
+                method = "Input.dispatchKeyEvent",
+                params = list(type = "keyDown",
+                              unmodifiedText = "w")) %>%
+      ws_con$send()
+  })
+  
+  ws_con$onMessage(function(event){
+    message("got!", event$data)
+    result_env$result_value <- TRUE
+  })
+  
+  ws_con$connect()
+
+  block_on_NULL("result_value", max_attempts = 1000, envir = result_env)
+  ws_con$close()
+
   instance
 }
 
@@ -67,14 +102,11 @@ chr_init <- function(url = "http://localhost:8080",
 ##' @author Miles McBain
 ##' @export
 chr_call <- function(instance, query){
-  session_num <- 1
+
   result_env <- new.env()
   result_env$result_value <- NULL
-  open_debuggers <-
-    jsonlite::read_json(glue::glue("http://localhost:{instance$debug_port}/json"))
 
-  ws_addr <- open_debuggers[[session_num]]$webSocketDebuggerUrl
-  ws_con <- websocket::WebSocket$new(ws_addr, autoConnect = FALSE)
+  ws_con <- debugger_socket(instance$debug_port)
 
   ws_con$onMessage(function(event){
     response <- jsonlite::fromJSON(event$data)
@@ -109,7 +141,7 @@ get_attribute_names <- function(id){
   chr_message(id = 2,
               method = "Runtime.evaluate",
               params = list(
-                expression = glue::glue('document.querySelector("{id}").getAttributeNames()'),
+                expression = glue::glue('document.getElementById("{id}").getAttributeNames()'),
                 returnByValue = TRUE))
 }
 
@@ -124,7 +156,7 @@ get_attributes <- function(id, attribute){
   chr_message(id = 2,
               method = "Runtime.evaluate",
               params = list(
-                expression = glue::glue('document.querySelector("{id}").getAttribute("{attribute}")'),
+                expression = glue::glue('document.getElementById("{id}").getAttribute("{attribute}")'),
                 returnByValue = TRUE))
 }
 
@@ -215,4 +247,13 @@ block_on_NULL <- function(a_value_name,
   }
   else
     TRUE
+}
+
+debugger_socket <- function(debug_port){
+  session_num <- 1
+  open_debuggers <-
+    jsonlite::read_json(glue::glue("http://localhost:{debug_port}/json"))
+  ws_addr <- open_debuggers[[session_num]]$webSocketDebuggerUrl
+  ws_con <- websocket::WebSocket$new(ws_addr, autoConnect = FALSE)
+  ws_con
 }
